@@ -3,7 +3,8 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useCreateEmployee } from '@/hooks/useEmployees';
+import { useCreateEmployee, useUpdateEmployee } from '@/hooks/useEmployees';
+import { useToast } from '@/hooks/use-toast';
 
 interface EmployeeFormProps {
   employee?: any;
@@ -26,6 +27,9 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ employee, onSuccess }) => {
   });
 
   const createEmployee = useCreateEmployee();
+  const updateEmployee = useUpdateEmployee();
+  const { toast } = useToast();
+  const isEditing = Boolean(employee);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -38,29 +42,51 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ employee, onSuccess }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createEmployee.mutateAsync({
-        ...formData,
-        status: 'active',
-        avatar_url: null
-      });
-      alert('Employee created successfully!');
+      if (isEditing) {
+        await updateEmployee.mutateAsync({
+          id: employee.id,
+          employee: formData
+        });
+        toast({
+          title: "Success!",
+          description: "Employee updated successfully.",
+        });
+      } else {
+        await createEmployee.mutateAsync({
+          ...formData,
+          status: 'active',
+          avatar_url: null
+        });
+        toast({
+          title: "Success!",
+          description: "Employee created successfully.",
+        });
+      }
+      
       if (onSuccess) onSuccess();
-      setFormData({
-        employee_id: '',
-        name: '',
-        email: '',
-        phone: '',
-        position: '',
-        department: '',
-        location: '',
-        join_date: '',
-        basic_salary: 0,
-        hra: 0,
-        allowances: 0,
-      });
+      
+      if (!isEditing) {
+        setFormData({
+          employee_id: '',
+          name: '',
+          email: '',
+          phone: '',
+          position: '',
+          department: '',
+          location: '',
+          join_date: '',
+          basic_salary: 0,
+          hra: 0,
+          allowances: 0,
+        });
+      }
     } catch (error) {
-      console.error('Error creating employee:', error);
-      alert('Error creating employee. Please try again.');
+      console.error('Error saving employee:', error);
+      toast({
+        title: "Error",
+        description: `Error ${isEditing ? 'updating' : 'creating'} employee. Please try again.`,
+        variant: "destructive",
+      });
     }
   };
 
@@ -195,9 +221,12 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ employee, onSuccess }) => {
         <Button 
           type="submit" 
           className="bg-blue-600 hover:bg-blue-700"
-          disabled={createEmployee.isPending}
+          disabled={createEmployee.isPending || updateEmployee.isPending}
         >
-          {createEmployee.isPending ? 'Creating...' : 'Create Employee'}
+          {(createEmployee.isPending || updateEmployee.isPending) 
+            ? (isEditing ? 'Updating...' : 'Creating...') 
+            : (isEditing ? 'Update Employee' : 'Create Employee')
+          }
         </Button>
       </div>
     </form>

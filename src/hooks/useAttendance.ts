@@ -1,17 +1,18 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 export interface AttendanceRecord {
   id: string;
   employee_id: string;
   date: string;
   status: 'present' | 'absent' | 'late' | 'on_leave';
-  check_in_time: string | null;
-  check_out_time: string | null;
-  notes: string | null;
+  check_in_time?: string;
+  check_out_time?: string;
+  notes?: string;
   created_at: string;
-  employees: {
+  employees?: {
     name: string;
     employee_id: string;
   };
@@ -21,68 +22,77 @@ export const useAttendance = (date?: string) => {
   return useQuery({
     queryKey: ['attendance', date],
     queryFn: async () => {
-      console.log('Fetching attendance for date:', date);
       let query = supabase
         .from('attendance')
-        .select(`
-          *,
-          employees (
-            name,
-            employee_id
-          )
-        `)
+        .select('*, employees(name, employee_id)')
         .order('date', { ascending: false });
-      
+
       if (date) {
         query = query.eq('date', date);
       }
-      
+
       const { data, error } = await query;
-      
-      if (error) {
-        console.error('Error fetching attendance:', error);
-        throw error;
-      }
-      console.log('Attendance fetched:', data);
+      if (error) throw error;
       return data as AttendanceRecord[];
     },
   });
 };
 
-export const useAttendanceStats = () => {
+export const useTodayAttendanceStats = () => {
+  const today = new Date().toISOString().split('T')[0];
+  
   return useQuery({
-    queryKey: ['attendance-stats'],
+    queryKey: ['attendance-stats', today],
     queryFn: async () => {
-      const today = new Date().toISOString().split('T')[0];
-      console.log('Fetching attendance stats for:', today);
-      
       const { data, error } = await supabase
         .from('attendance')
         .select('status')
         .eq('date', today);
-      
-      if (error) {
-        console.error('Error fetching attendance stats:', error);
-        throw error;
-      }
-      
+
+      if (error) throw error;
+
       const stats = {
-        present: data.filter(r => r.status === 'present').length,
-        late: data.filter(r => r.status === 'late').length,
-        absent: data.filter(r => r.status === 'absent').length,
-        on_leave: data.filter(r => r.status === 'on_leave').length,
+        present: data.filter(record => record.status === 'present').length,
+        absent: data.filter(record => record.status === 'absent').length,
+        late: data.filter(record => record.status === 'late').length,
+        onLeave: data.filter(record => record.status === 'on_leave').length,
+        total: data.length,
       };
+
+      return stats;
+    },
+  });
+};
+
+export const useCreateAttendance = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  
+  return useMutation({
+    mutationFn: async (attendance: Omit<AttendanceRecord, 'id' | 'created_at' | 'employees'>) => {
+      const { data, error } = await supabase
+        .from('attendance')
+        .insert([attendance])
+        .select();
       
-      const total = stats.present + stats.late + stats.absent + stats.on_leave;
-      
-      const result = {
-        ...stats,
-        total,
-        presentPercentage: total > 0 ? Math.round((stats.present / total) * 100) : 0,
-      };
-      
-      console.log('Attendance stats:', result);
-      return result;
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendance'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-stats'] });
+      toast({
+        title: "Success!",
+        description: "Attendance record created successfully.",
+      });
+    },
+    onError: (error) => {
+      console.error('Error creating attendance:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create attendance record. Please try again.",
+        variant: "destructive",
+      });
     },
   });
 };

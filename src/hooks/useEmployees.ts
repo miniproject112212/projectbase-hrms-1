@@ -65,3 +65,32 @@ export const useCreateEmployee = () => {
     },
   });
 };
+
+export const useUpdateEmployee = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, employee }: { id: string; employee: Partial<Omit<Employee, 'id' | 'created_at' | 'updated_at'>> }) => {
+      console.log('Updating employee:', id, employee);
+      const { data, error } = await supabase
+        .from('employees')
+        .update({
+          ...employee,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Error updating employee:', error);
+        throw error;
+      }
+      console.log('Employee updated:', data);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+    },
+  });
+};

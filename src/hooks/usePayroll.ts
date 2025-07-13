@@ -1,6 +1,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 export interface PayrollRecord {
   id: string;
@@ -13,45 +14,26 @@ export interface PayrollRecord {
   deductions: number;
   gross_pay: number;
   net_pay: number;
-  status: string;
-  processed_at: string | null;
+  status: 'draft' | 'processed' | 'paid';
+  processed_at?: string;
   created_at: string;
   updated_at: string;
-  employees: {
+  employees?: {
     name: string;
     employee_id: string;
-    department: string;
   };
 }
 
-export const usePayroll = (payPeriod?: string) => {
+export const usePayroll = () => {
   return useQuery({
-    queryKey: ['payroll', payPeriod],
+    queryKey: ['payroll'],
     queryFn: async () => {
-      console.log('Fetching payroll for period:', payPeriod);
-      let query = supabase
+      const { data, error } = await supabase
         .from('payroll')
-        .select(`
-          *,
-          employees (
-            name,
-            employee_id,
-            department
-          )
-        `)
+        .select('*, employees(name, employee_id)')
         .order('created_at', { ascending: false });
       
-      if (payPeriod) {
-        query = query.eq('pay_period_start', payPeriod);
-      }
-      
-      const { data, error } = await query;
-      
-      if (error) {
-        console.error('Error fetching payroll:', error);
-        throw error;
-      }
-      console.log('Payroll fetched:', data);
+      if (error) throw error;
       return data as PayrollRecord[];
     },
   });
@@ -64,91 +46,92 @@ export const usePayrollStats = () => {
       console.log('Fetching payroll stats...');
       const { data, error } = await supabase
         .from('payroll')
-        .select('net_pay, status, employees(*)');
+        .select('net_pay, status');
       
       if (error) {
         console.error('Error fetching payroll stats:', error);
         throw error;
       }
-      
-      const totalPayroll = data.reduce((sum, record) => sum + record.net_pay, 0);
-      const processedCount = data.filter(r => r.status === 'processed').length;
-      const pendingCount = data.filter(r => r.status === 'draft').length;
-      const totalEmployees = data.length;
-      
-      const result = {
-        totalPayroll,
-        processedCount,
-        pendingCount,
-        totalEmployees,
+
+      const stats = {
+        totalPayroll: data.reduce((sum, record) => sum + (record.net_pay || 0), 0),
+        processedCount: data.filter(record => record.status === 'processed' || record.status === 'paid').length,
+        pendingCount: data.filter(record => record.status === 'draft').length,
+        totalEmployees: data.length,
       };
-      
-      console.log('Payroll stats:', result);
-      return result;
+
+      console.log('Payroll stats:', stats);
+      return stats;
     },
   });
 };
 
-export const useGeneratePayroll = () => {
+export const useCreatePayroll = () => {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   
   return useMutation({
-    mutationFn: async () => {
-      console.log('Generating payroll...');
-      const { data: employees, error: employeesError } = await supabase
-        .from('employees')
-        .select('*')
-        .eq('status', 'active');
-      
-      if (employeesError) {
-        console.error('Error fetching employees for payroll:', employeesError);
-        throw employeesError;
-      }
-      
-      const payPeriodStart = new Date();
-      payPeriodStart.setDate(1); // First day of current month
-      const payPeriodEnd = new Date(payPeriodStart);
-      payPeriodEnd.setMonth(payPeriodEnd.getMonth() + 1);
-      payPeriodEnd.setDate(0); // Last day of current month
-      
-      const payrollRecords = employees.map(employee => {
-        const grossPay = employee.basic_salary + employee.hra + employee.allowances;
-        const deductions = grossPay * 0.12; // 12% deductions
-        const netPay = grossPay - deductions;
-        
-        return {
-          employee_id: employee.id,
-          pay_period_start: payPeriodStart.toISOString().split('T')[0],
-          pay_period_end: payPeriodEnd.toISOString().split('T')[0],
-          basic_salary: employee.basic_salary,
-          hra: employee.hra,
-          allowances: employee.allowances,
-          deductions,
-          gross_pay: grossPay,
-          net_pay: netPay,
-          status: 'processed',
-          processed_at: new Date().toISOString(),
-        };
-      });
-      
-      console.log('Inserting payroll records:', payrollRecords);
+    mutationFn: async (payrollData: Omit<PayrollRecord, 'id' | 'created_at' | 'updated_at' | 'employees'>) => {
       const { data, error } = await supabase
         .from('payroll')
-        .upsert(payrollRecords, { 
-          onConflict: 'employee_id,pay_period_start,pay_period_end' 
-        })
+        .insert([payrollData])
         .select();
       
-      if (error) {
-        console.error('Error generating payroll:', error);
-        throw error;
-      }
-      console.log('Payroll generated:', data);
+      if (error) throw error;
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payroll'] });
       queryClient.invalidateQueries({ queryKey: ['payroll-stats'] });
+      toast({
+        title: "Success!",
+        description: "Payroll record created successfully.",
+      });
+    },
+    onError: (error) => {
+      console.error('Error creating payroll:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create payroll record. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+};
+
+export const useUpdatePayroll = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  
+  return useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<PayrollRecord> }) => {
+      const { data, error } = await supabase
+        .from('payroll')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payroll'] });
+      queryClient.invalidateQueries({ queryKey: ['payroll-stats'] });
+      toast({
+        title: "Success!",
+        description: "Payroll record updated successfully.",
+      });
+    },
+    onError: (error) => {
+      console.error('Error updating payroll:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update payroll record. Please try again.",
+        variant: "destructive",
+      });
     },
   });
 };
