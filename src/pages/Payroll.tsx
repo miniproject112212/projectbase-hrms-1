@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { DollarSign, Download, FileText, Calculator, Settings, Users, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,12 +10,14 @@ import MetricCard from '@/components/MetricCard';
 import { usePayrollStats, useCreatePayroll } from '@/hooks/usePayroll';
 import { useEmployees } from '@/hooks/useEmployees';
 import { useToast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 
 const Payroll = () => {
   const { data: payrollStats } = usePayrollStats();
   const { data: employees = [] } = useEmployees();
   const createPayroll = useCreatePayroll();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -45,38 +46,90 @@ const Payroll = () => {
   };
 
   const processPayrollForAllEmployees = async () => {
+    if (employees.length === 0) {
+      toast({
+        title: "No Employees",
+        description: "No employees found to process payroll for.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsProcessing(true);
+    console.log('Starting payroll processing for', employees.length, 'employees');
     
     try {
       const currentDate = new Date();
       const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
 
+      let successCount = 0;
+      let errorCount = 0;
+
       // Process payroll for each employee
       for (const employee of employees) {
-        const grossPay = employee.basic_salary + employee.hra + employee.allowances;
-        const deductions = Math.round(employee.basic_salary * 0.1875);
-        const netPay = grossPay - deductions;
+        try {
+          console.log('Processing payroll for employee:', employee.name);
+          
+          const basicSalary = Number(employee.basic_salary) || 0;
+          const hra = Number(employee.hra) || 0;
+          const allowances = Number(employee.allowances) || 0;
+          
+          const grossPay = basicSalary + hra + allowances;
+          
+          // Calculate deductions (PF: 12%, ESI: 1.75%, Tax: 5%)
+          const pfDeduction = Math.round(basicSalary * 0.12);
+          const esiDeduction = Math.round(basicSalary * 0.0175);
+          const taxDeduction = Math.round(basicSalary * 0.05);
+          const totalDeductions = pfDeduction + esiDeduction + taxDeduction;
+          
+          const netPay = grossPay - totalDeductions;
 
-        await createPayroll.mutateAsync({
-          employee_id: employee.id,
-          pay_period_start: startOfMonth.toISOString().split('T')[0],
-          pay_period_end: endOfMonth.toISOString().split('T')[0],
-          basic_salary: employee.basic_salary,
-          hra: employee.hra,
-          allowances: employee.allowances,
-          deductions: deductions,
-          gross_pay: grossPay,
-          net_pay: netPay,
-          status: 'processed',
-          processed_at: new Date().toISOString(),
-        });
+          console.log(`Employee ${employee.name}: Gross=${grossPay}, Deductions=${totalDeductions}, Net=${netPay}`);
+
+          await createPayroll.mutateAsync({
+            employee_id: employee.id,
+            pay_period_start: startOfMonth.toISOString().split('T')[0],
+            pay_period_end: endOfMonth.toISOString().split('T')[0],
+            basic_salary: basicSalary,
+            hra: hra,
+            allowances: allowances,
+            deductions: totalDeductions,
+            gross_pay: grossPay,
+            net_pay: netPay,
+            status: 'processed',
+            processed_at: new Date().toISOString(),
+          });
+          
+          successCount++;
+          console.log(`Successfully processed payroll for ${employee.name}`);
+        } catch (error) {
+          console.error(`Error processing payroll for ${employee.name}:`, error);
+          errorCount++;
+        }
       }
 
-      toast({
-        title: "Success!",
-        description: `Payroll processed successfully for ${employees.length} employees.`,
-      });
+      // Force refresh of payroll stats
+      await queryClient.invalidateQueries({ queryKey: ['payroll'] });
+      await queryClient.invalidateQueries({ queryKey: ['payroll-stats'] });
+      
+      // Wait a bit for the queries to refresh
+      setTimeout(() => {
+        queryClient.refetchQueries({ queryKey: ['payroll-stats'] });
+      }, 500);
+
+      if (successCount > 0) {
+        toast({
+          title: "Payroll Processing Complete!",
+          description: `Successfully processed payroll for ${successCount} employees${errorCount > 0 ? `. ${errorCount} failed.` : '.'}`,
+        });
+      } else {
+        toast({
+          title: "Processing Failed",
+          description: "Failed to process payroll for any employees. Please try again.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error('Error processing payroll:', error);
       toast({
