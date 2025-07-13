@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,7 +32,7 @@ const Dashboard = () => {
   const payrollStats = {
     totalPayroll: payrollRecords.reduce((sum, record) => sum + record.net_pay, 0),
     processedCount: payrollRecords.filter(r => r.status === 'processed').length,
-    pendingCount: payrollRecords.filter(r => r.status === 'pending').length,
+    draftCount: payrollRecords.filter(r => r.status === 'draft').length,
     totalEmployees: employees.length,
   };
 

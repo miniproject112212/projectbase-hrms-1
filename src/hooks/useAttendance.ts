@@ -38,7 +38,7 @@ export const useAttendance = (date?: string) => {
   });
 };
 
-export const useTodayAttendanceStats = () => {
+export const useAttendanceStats = () => {
   const today = new Date().toISOString().split('T')[0];
   
   return useQuery({
@@ -55,8 +55,9 @@ export const useTodayAttendanceStats = () => {
         present: data.filter(record => record.status === 'present').length,
         absent: data.filter(record => record.status === 'absent').length,
         late: data.filter(record => record.status === 'late').length,
-        onLeave: data.filter(record => record.status === 'on_leave').length,
+        on_leave: data.filter(record => record.status === 'on_leave').length,
         total: data.length,
+        presentPercentage: data.length > 0 ? Math.round((data.filter(record => record.status === 'present').length / data.length) * 100) : 0,
       };
 
       return stats;

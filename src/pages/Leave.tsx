@@ -24,7 +24,7 @@ const Leave = () => {
   const [showApplyLeave, setShowApplyLeave] = useState(false);
   const [leaveForm, setLeaveForm] = useState({
     employee_id: '',
-    leave_type: 'sick',
+    leave_type: 'sick' as 'annual' | 'sick' | 'casual' | 'vacation' | 'personal' | 'maternity',
     start_date: '',
     end_date: '',
     reason: ''
