@@ -59,6 +59,7 @@ const Leave = () => {
         end_date: leaveForm.end_date,
         days_count: daysDiff,
         reason: leaveForm.reason,
+        status: 'pending',
       });
 
       toast({
@@ -179,7 +180,7 @@ const Leave = () => {
                 </div>
                 <div>
                   <Label htmlFor="leave_type">Leave Type</Label>
-                  <Select value={leaveForm.leave_type} onValueChange={(value) => setLeaveForm({...leaveForm, leave_type: value})}>
+                  <Select value={leaveForm.leave_type} onValueChange={(value: 'annual' | 'sick' | 'casual' | 'vacation' | 'personal' | 'maternity') => setLeaveForm({...leaveForm, leave_type: value})}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
