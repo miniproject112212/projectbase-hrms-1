@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { DollarSign, Download, FileText, Calculator, Settings, Users, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,15 +8,17 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import MetricCard from '@/components/MetricCard';
-import { usePayrollStats } from '@/hooks/usePayroll';
+import { usePayrollStats, useCreatePayroll } from '@/hooks/usePayroll';
 import { useEmployees } from '@/hooks/useEmployees';
 import { useToast } from '@/hooks/use-toast';
 
 const Payroll = () => {
   const { data: payrollStats } = usePayrollStats();
   const { data: employees = [] } = useEmployees();
+  const createPayroll = useCreatePayroll();
   const { toast } = useToast();
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleExportAll = () => {
     const csvContent = "data:text/csv;charset=utf-8," 
@@ -41,47 +44,165 @@ const Payroll = () => {
     });
   };
 
-  const generatePayslip = (employee) => {
-    const payslipContent = `
-PAYSLIP
-Employee: ${employee.name}
-Employee ID: ${employee.employee_id}
-Department: ${employee.department}
-Position: ${employee.position}
+  const processPayrollForAllEmployees = async () => {
+    setIsProcessing(true);
+    
+    try {
+      const currentDate = new Date();
+      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
 
-EARNINGS:
-Basic Salary: ₹${employee.basic_salary.toLocaleString()}
-HRA: ₹${employee.hra.toLocaleString()}
-Allowances: ₹${employee.allowances.toLocaleString()}
+      // Process payroll for each employee
+      for (const employee of employees) {
+        const grossPay = employee.basic_salary + employee.hra + employee.allowances;
+        const deductions = Math.round(employee.basic_salary * 0.1875);
+        const netPay = grossPay - deductions;
 
-GROSS PAY: ₹${(employee.basic_salary + employee.hra + employee.allowances).toLocaleString()}
+        await createPayroll.mutateAsync({
+          employee_id: employee.id,
+          pay_period_start: startOfMonth.toISOString().split('T')[0],
+          pay_period_end: endOfMonth.toISOString().split('T')[0],
+          basic_salary: employee.basic_salary,
+          hra: employee.hra,
+          allowances: employee.allowances,
+          deductions: deductions,
+          gross_pay: grossPay,
+          net_pay: netPay,
+          status: 'processed',
+          processed_at: new Date().toISOString(),
+        });
+      }
 
-DEDUCTIONS:
-PF: ₹${Math.round(employee.basic_salary * 0.12).toLocaleString()}
-ESI: ₹${Math.round(employee.basic_salary * 0.0175).toLocaleString()}
-Tax: ₹${Math.round(employee.basic_salary * 0.05).toLocaleString()}
+      toast({
+        title: "Success!",
+        description: `Payroll processed successfully for ${employees.length} employees.`,
+      });
+    } catch (error) {
+      console.error('Error processing payroll:', error);
+      toast({
+        title: "Error",
+        description: "Failed to process payroll. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
-NET PAY: ₹${(employee.basic_salary + employee.hra + employee.allowances - Math.round(employee.basic_salary * 0.1875)).toLocaleString()}
+  const generatePayslipPDF = (employee) => {
+    const grossPay = employee.basic_salary + employee.hra + employee.allowances;
+    const pfDeduction = Math.round(employee.basic_salary * 0.12);
+    const esiDeduction = Math.round(employee.basic_salary * 0.0175);
+    const taxDeduction = Math.round(employee.basic_salary * 0.05);
+    const totalDeductions = pfDeduction + esiDeduction + taxDeduction;
+    const netPay = grossPay - totalDeductions;
 
-Generated on: ${new Date().toLocaleDateString()}
+    // Create HTML content for PDF-like appearance
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Payslip - ${employee.name}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; background: white; }
+          .payslip { max-width: 800px; margin: 0 auto; border: 2px solid #333; padding: 20px; }
+          .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+          .company-name { font-size: 24px; font-weight: bold; color: #333; }
+          .payslip-title { font-size: 18px; margin-top: 10px; }
+          .employee-info { display: flex; justify-content: space-between; margin-bottom: 20px; }
+          .info-section { flex: 1; }
+          .section-title { font-weight: bold; font-size: 16px; border-bottom: 1px solid #666; padding-bottom: 5px; margin-bottom: 10px; }
+          .earnings, .deductions { width: 48%; display: inline-block; vertical-align: top; }
+          .earnings { margin-right: 4%; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+          th, td { padding: 8px; border: 1px solid #666; text-align: left; }
+          th { background-color: #f5f5f5; font-weight: bold; }
+          .amount { text-align: right; }
+          .total-row { font-weight: bold; background-color: #f0f0f0; }
+          .net-pay { font-size: 18px; font-weight: bold; text-align: center; margin-top: 20px; padding: 15px; border: 2px solid #333; background-color: #f9f9f9; }
+          .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="payslip">
+          <div class="header">
+            <div class="company-name">HR Management System</div>
+            <div class="payslip-title">PAYSLIP FOR ${new Date().toLocaleString('default', { month: 'long', year: 'numeric' }).toUpperCase()}</div>
+          </div>
+          
+          <div class="employee-info">
+            <div class="info-section">
+              <div><strong>Employee Name:</strong> ${employee.name}</div>
+              <div><strong>Employee ID:</strong> ${employee.employee_id}</div>
+              <div><strong>Department:</strong> ${employee.department}</div>
+            </div>
+            <div class="info-section">
+              <div><strong>Position:</strong> ${employee.position}</div>
+              <div><strong>Pay Period:</strong> ${new Date().toLocaleDateString()}</div>
+              <div><strong>Generated:</strong> ${new Date().toLocaleDateString()}</div>
+            </div>
+          </div>
+
+          <div class="earnings">
+            <div class="section-title">EARNINGS</div>
+            <table>
+              <tr><td>Basic Salary</td><td class="amount">₹${employee.basic_salary.toLocaleString()}</td></tr>
+              <tr><td>HRA</td><td class="amount">₹${employee.hra.toLocaleString()}</td></tr>
+              <tr><td>Allowances</td><td class="amount">₹${employee.allowances.toLocaleString()}</td></tr>
+              <tr class="total-row"><td>Gross Pay</td><td class="amount">₹${grossPay.toLocaleString()}</td></tr>
+            </table>
+          </div>
+
+          <div class="deductions">
+            <div class="section-title">DEDUCTIONS</div>
+            <table>
+              <tr><td>Provident Fund (12%)</td><td class="amount">₹${pfDeduction.toLocaleString()}</td></tr>
+              <tr><td>ESI (1.75%)</td><td class="amount">₹${esiDeduction.toLocaleString()}</td></tr>
+              <tr><td>Income Tax (5%)</td><td class="amount">₹${taxDeduction.toLocaleString()}</td></tr>
+              <tr class="total-row"><td>Total Deductions</td><td class="amount">₹${totalDeductions.toLocaleString()}</td></tr>
+            </table>
+          </div>
+
+          <div class="net-pay">
+            NET PAY: ₹${netPay.toLocaleString()}
+          </div>
+
+          <div class="footer">
+            <p>This is a computer-generated payslip and does not require a signature.</p>
+            <p>Generated on: ${new Date().toLocaleString()}</p>
+          </div>
+        </div>
+      </body>
+      </html>
     `;
 
-    const element = document.createElement('a');
-    const file = new Blob([payslipContent], { type: 'text/plain' });
-    element.href = URL.createObjectURL(file);
-    element.download = `payslip_${employee.employee_id}_${new Date().getMonth() + 1}_${new Date().getFullYear()}.txt`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+    // Create a new window and print
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // Wait for content to load then print
+    printWindow.onload = () => {
+      printWindow.print();
+      // Close the window after printing (optional)
+      setTimeout(() => {
+        printWindow.close();
+      }, 1000);
+    };
 
     toast({
       title: "Payslip Generated",
-      description: `Payslip for ${employee.name} has been downloaded.`,
+      description: `PDF payslip for ${employee.name} is ready for download/print.`,
     });
   };
 
   const quickActions = [
-    { title: 'Process Payroll', icon: Calculator, action: () => toast({ title: "Processing", description: "Payroll processing initiated..." }) },
+    { 
+      title: 'Process Payroll', 
+      icon: Calculator, 
+      action: processPayrollForAllEmployees,
+      disabled: isProcessing
+    },
     { title: 'Generate Reports', icon: FileText, action: () => toast({ title: "Generating", description: "Payroll reports being generated..." }) },
     { title: 'Tax Calculation', icon: TrendingUp, action: () => toast({ title: "Calculating", description: "Tax calculations in progress..." }) },
     { title: 'Payroll Settings', icon: Settings, action: () => toast({ title: "Settings", description: "Opening payroll settings..." }) }
@@ -181,9 +302,11 @@ Generated on: ${new Date().toLocaleDateString()}
                       variant="outline"
                       className="w-full justify-start"
                       onClick={action.action}
+                      disabled={action.disabled}
                     >
                       <action.icon className="h-4 w-4 mr-2" />
                       {action.title}
+                      {action.disabled && isProcessing && " (Processing...)"}
                     </Button>
                   ))}
                 </div>
@@ -219,7 +342,7 @@ Generated on: ${new Date().toLocaleDateString()}
                       </div>
                       <Button
                         size="sm"
-                        onClick={() => generatePayslip(employee)}
+                        onClick={() => generatePayslipPDF(employee)}
                       >
                         Download Payslip
                       </Button>
