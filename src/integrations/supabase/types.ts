@@ -57,11 +57,13 @@ export type Database = {
       }
       employees: {
         Row: {
+          advance: number | null
           allowances: number
           avatar_url: string | null
           basic_salary: number
           created_at: string
           department: string
+          document_url: string | null
           email: string
           employee_id: string
           hra: number
@@ -69,17 +71,22 @@ export type Database = {
           join_date: string
           location: string | null
           name: string
+          notes: string | null
+          pan_card: string | null
+          pf: number | null
           phone: string | null
           position: string
           status: string
           updated_at: string
         }
         Insert: {
+          advance?: number | null
           allowances?: number
           avatar_url?: string | null
           basic_salary?: number
           created_at?: string
           department: string
+          document_url?: string | null
           email: string
           employee_id: string
           hra?: number
@@ -87,17 +94,22 @@ export type Database = {
           join_date?: string
           location?: string | null
           name: string
+          notes?: string | null
+          pan_card?: string | null
+          pf?: number | null
           phone?: string | null
           position: string
           status?: string
           updated_at?: string
         }
         Update: {
+          advance?: number | null
           allowances?: number
           avatar_url?: string | null
           basic_salary?: number
           created_at?: string
           department?: string
+          document_url?: string | null
           email?: string
           employee_id?: string
           hra?: number
@@ -105,6 +117,9 @@ export type Database = {
           join_date?: string
           location?: string | null
           name?: string
+          notes?: string | null
+          pan_card?: string | null
+          pf?: number | null
           phone?: string | null
           position?: string
           status?: string

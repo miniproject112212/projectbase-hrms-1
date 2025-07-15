@@ -59,21 +59,22 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ employee, onSuccess }) => {
   };
 
   const validatePanCard = async (panCard: string) => {
-    if (!panCard) return true;
+    if (!panCard || panCard.length === 0) return true;
     
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('employees')
         .select('id')
-        .eq('pan_card', panCard)
-        .neq('id', employee?.id || '');
+        .eq('pan_card', panCard);
       
-      if (error) {
-        console.error('Error checking PAN card:', error);
-        return true;
+      if (data) {
+        // If editing, exclude current employee from check
+        if (employee?.id) {
+          return data.filter(emp => emp.id !== employee.id).length === 0;
+        }
+        return data.length === 0;
       }
-      
-      return data.length === 0;
+      return true;
     } catch (error) {
       console.error('Error validating PAN card:', error);
       return true;
