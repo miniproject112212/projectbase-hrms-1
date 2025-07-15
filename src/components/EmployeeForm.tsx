@@ -44,7 +44,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ employee, onSuccess }) => {
     
     setFormData(prev => ({
       ...prev,
-      [name]: numericFields.includes(name) ? Number(value) : value
+      [name]: numericFields.includes(name) ? (value === '' ? 0 : Number(value)) : value
     }));
   };
 
@@ -58,48 +58,65 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ employee, onSuccess }) => {
     }
   };
 
-  const validatePanCard = async (panCard: string) => {
-    if (!panCard || panCard.length === 0) return true;
+  const validatePanCard = async (panCard: string): Promise<boolean> => {
+    if (!panCard || panCard.trim() === '') return true;
     
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('employees')
         .select('id')
-        .eq('pan_card', panCard);
+        .eq('pan_card', panCard.trim());
       
-      if (data) {
+      if (error) {
+        console.error('Error validating PAN card:', error);
+        return true; // Allow on error to prevent blocking
+      }
+
+      if (data && data.length > 0) {
         // If editing, exclude current employee from check
         if (employee?.id) {
           return data.filter(emp => emp.id !== employee.id).length === 0;
         }
-        return data.length === 0;
+        return false; // PAN card already exists
       }
       return true;
     } catch (error) {
       console.error('Error validating PAN card:', error);
-      return true;
+      return true; // Allow on error to prevent blocking
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate PAN card
-    const isPanValid = await validatePanCard(formData.pan_card);
-    if (!isPanValid) {
-      toast({
-        title: "Error",
-        description: "PAN card number already exists. Please enter a different PAN card number.",
-        variant: "destructive",
-      });
-      return;
+    // Validate PAN card only if it's provided
+    if (formData.pan_card && formData.pan_card.trim() !== '') {
+      const isPanValid = await validatePanCard(formData.pan_card);
+      if (!isPanValid) {
+        toast({
+          title: "Error",
+          description: "PAN card number already exists. Please enter a different PAN card number.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
     
     try {
+      // Clean the form data before submission
+      const cleanFormData = {
+        ...formData,
+        pan_card: formData.pan_card.trim() || null,
+        notes: formData.notes.trim() || null,
+        document_url: formData.document_url.trim() || null,
+        phone: formData.phone.trim() || null,
+        location: formData.location.trim() || null,
+      };
+
       if (isEditing) {
         await updateEmployee.mutateAsync({
           id: employee.id,
-          employee: formData
+          employee: cleanFormData
         });
         toast({
           title: "Success!",
@@ -107,7 +124,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ employee, onSuccess }) => {
         });
       } else {
         await createEmployee.mutateAsync({
-          ...formData,
+          ...cleanFormData,
           status: 'active',
           avatar_url: null
         });
@@ -295,17 +312,6 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ employee, onSuccess }) => {
           />
         </div>
         <div>
-          <Label htmlFor="notes">Notes (Narration)</Label>
-          <Textarea
-            id="notes"
-            name="notes"
-            value={formData.notes}
-            onChange={handleInputChange}
-            placeholder="Enter any additional notes or remarks..."
-            rows={3}
-          />
-        </div>
-        <div>
           <Label htmlFor="pan_card">PAN Card Number</Label>
           <Input
             id="pan_card"
@@ -330,6 +336,17 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ employee, onSuccess }) => {
               Current file: {formData.document_url}
             </p>
           )}
+        </div>
+        <div className="md:col-span-2">
+          <Label htmlFor="notes">Notes (Narration)</Label>
+          <Textarea
+            id="notes"
+            name="notes"
+            value={formData.notes}
+            onChange={handleInputChange}
+            placeholder="Enter any additional notes or remarks..."
+            rows={3}
+          />
         </div>
       </div>
 

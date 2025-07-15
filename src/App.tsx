@@ -15,6 +15,7 @@ import Recruitment from "./pages/Recruitment";
 import Performance from "./pages/Performance";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import Branches from "./pages/Branches";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="payroll" element={<Payroll />} />
             <Route path="recruitment" element={<Recruitment />} />
             <Route path="performance" element={<Performance />} />
+            <Route path="branches" element={<Branches />} />
             <Route path="reports" element={<Reports />} />
             <Route path="settings" element={<Settings />} />
           </Route>

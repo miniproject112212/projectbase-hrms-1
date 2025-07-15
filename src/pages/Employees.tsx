@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Search, Filter, Plus, Edit, Mail, Phone, MapPin, Calendar } from 'lucide-react';
+import { Search, Filter, Plus, Edit, Mail, Phone, MapPin, Calendar, Eye } from 'lucide-react';
 import EmployeeForm from '@/components/EmployeeForm';
+import EmployeeView from '@/components/EmployeeView';
 
 const Employees = () => {
   const { data: employees = [], refetch } = useEmployees();
@@ -17,7 +18,9 @@ const Employees = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showViewDialog, setShowViewDialog] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
+  const [viewingEmployee, setViewingEmployee] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
 
   const handleAddSuccess = () => {
@@ -34,6 +37,11 @@ const Employees = () => {
   const handleEditClick = (employee: any) => {
     setEditingEmployee(employee);
     setShowEditDialog(true);
+  };
+
+  const handleViewClick = (employee: any) => {
+    setViewingEmployee(employee);
+    setShowViewDialog(true);
   };
 
   const filteredEmployees = employees.filter(employee => {
@@ -153,13 +161,22 @@ const Employees = () => {
                   <p className="text-sm text-gray-600">{employee.position}</p>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleEditClick(employee)}
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
+              <div className="flex space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleViewClick(employee)}
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEditClick(employee)}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -208,6 +225,12 @@ const Employees = () => {
           <EmployeeForm employee={editingEmployee} onSuccess={handleEditSuccess} />
         </DialogContent>
       </Dialog>
+
+      <EmployeeView 
+        employee={viewingEmployee}
+        isOpen={showViewDialog}
+        onClose={() => setShowViewDialog(false)}
+      />
     </div>
   );
 };

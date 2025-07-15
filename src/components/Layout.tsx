@@ -13,7 +13,8 @@ import {
   Settings,
   Search,
   Bell,
-  User
+  User,
+  Building2
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
@@ -28,6 +29,7 @@ const Layout = () => {
     { name: 'Payroll', href: '/payroll', icon: DollarSign },
     { name: 'Recruitment', href: '/recruitment', icon: UserCheck },
     { name: 'Performance', href: '/performance', icon: Target },
+    { name: 'Branches', href: '/branches', icon: Building2 },
     { name: 'Reports', href: '/reports', icon: FileText },
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
