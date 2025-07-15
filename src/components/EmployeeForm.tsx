@@ -8,13 +8,32 @@ import { useCreateEmployee, useUpdateEmployee } from '@/hooks/useEmployees';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
+interface EmployeeFormData {
+  employee_id: string;
+  name: string;
+  email: string;
+  phone: string;
+  position: string;
+  department: string;
+  location: string;
+  join_date: string;
+  basic_salary: number;
+  hra: number;
+  allowances: number;
+  pf: number;
+  advance: number;
+  notes: string;
+  pan_card: string;
+  document_url: string;
+}
+
 interface EmployeeFormProps {
   employee?: any;
   onSuccess?: () => void;
 }
 
 const EmployeeForm: React.FC<EmployeeFormProps> = ({ employee, onSuccess }) => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<EmployeeFormData>({
     employee_id: employee?.employee_id || '',
     name: employee?.name || '',
     email: employee?.email || '',
@@ -40,16 +59,17 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ employee, onSuccess }) => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    const numericFields = ['basic_salary', 'hra', 'allowances', 'pf', 'advance'];
+    
     setFormData(prev => ({
       ...prev,
-      [name]: name.includes('salary') || name === 'hra' || name === 'allowances' || name === 'pf' || name === 'advance' ? Number(value) : value
+      [name]: numericFields.includes(name) ? Number(value) : value
     }));
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // For now, just store the file name - you can implement actual file upload later
       setFormData(prev => ({
         ...prev,
         document_url: file.name
