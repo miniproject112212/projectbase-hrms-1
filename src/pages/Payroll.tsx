@@ -11,6 +11,7 @@ import { usePayrollStats, useCreatePayroll } from '@/hooks/usePayroll';
 import { useEmployees } from '@/hooks/useEmployees';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 const Payroll = () => {
   const { data: payrollStats } = usePayrollStats();
@@ -87,19 +88,50 @@ const Payroll = () => {
 
           console.log(`Employee ${employee.name}: Gross=${grossPay}, Deductions=${totalDeductions}, Net=${netPay}`);
 
-          await createPayroll.mutateAsync({
-            employee_id: employee.id,
-            pay_period_start: startOfMonth.toISOString().split('T')[0],
-            pay_period_end: endOfMonth.toISOString().split('T')[0],
-            basic_salary: basicSalary,
-            hra: hra,
-            allowances: allowances,
-            deductions: totalDeductions,
-            gross_pay: grossPay,
-            net_pay: netPay,
-            status: 'processed',
-            processed_at: new Date().toISOString(),
-          });
+          // Check if payroll record already exists for this employee and period
+          const payPeriodStart = startOfMonth.toISOString().split('T')[0];
+          const payPeriodEnd = endOfMonth.toISOString().split('T')[0];
+          
+          const { data: existingPayroll } = await supabase
+            .from('payroll')
+            .select('id')
+            .eq('employee_id', employee.id)
+            .eq('pay_period_start', payPeriodStart)
+            .eq('pay_period_end', payPeriodEnd)
+            .maybeSingle();
+
+          if (existingPayroll) {
+            // Update existing payroll record
+            await supabase
+              .from('payroll')
+              .update({
+                basic_salary: basicSalary,
+                hra: hra,
+                allowances: allowances,
+                deductions: totalDeductions,
+                gross_pay: grossPay,
+                net_pay: netPay,
+                status: 'processed',
+                processed_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', existingPayroll.id);
+          } else {
+            // Create new payroll record
+            await createPayroll.mutateAsync({
+              employee_id: employee.id,
+              pay_period_start: payPeriodStart,
+              pay_period_end: payPeriodEnd,
+              basic_salary: basicSalary,
+              hra: hra,
+              allowances: allowances,
+              deductions: totalDeductions,
+              gross_pay: grossPay,
+              net_pay: netPay,
+              status: 'processed',
+              processed_at: new Date().toISOString(),
+            });
+          }
           
           successCount++;
           console.log(`Successfully processed payroll for ${employee.name}`);
