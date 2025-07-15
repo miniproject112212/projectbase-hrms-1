@@ -8,32 +8,13 @@ import { useCreateEmployee, useUpdateEmployee } from '@/hooks/useEmployees';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
-interface EmployeeFormData {
-  employee_id: string;
-  name: string;
-  email: string;
-  phone: string;
-  position: string;
-  department: string;
-  location: string;
-  join_date: string;
-  basic_salary: number;
-  hra: number;
-  allowances: number;
-  pf: number;
-  advance: number;
-  notes: string;
-  pan_card: string;
-  document_url: string;
-}
-
 interface EmployeeFormProps {
   employee?: any;
   onSuccess?: () => void;
 }
 
 const EmployeeForm: React.FC<EmployeeFormProps> = ({ employee, onSuccess }) => {
-  const [formData, setFormData] = useState<EmployeeFormData>({
+  const [formData, setFormData] = useState({
     employee_id: employee?.employee_id || '',
     name: employee?.name || '',
     email: employee?.email || '',
