@@ -3,8 +3,10 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useCreateEmployee, useUpdateEmployee } from '@/hooks/useEmployees';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface EmployeeFormProps {
   employee?: any;
@@ -24,6 +26,11 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ employee, onSuccess }) => {
     basic_salary: employee?.basic_salary || 0,
     hra: employee?.hra || 0,
     allowances: employee?.allowances || 0,
+    pf: employee?.pf || 0,
+    advance: employee?.advance || 0,
+    notes: employee?.notes || '',
+    pan_card: employee?.pan_card || '',
+    document_url: employee?.document_url || '',
   });
 
   const createEmployee = useCreateEmployee();
@@ -31,16 +38,61 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ employee, onSuccess }) => {
   const { toast } = useToast();
   const isEditing = Boolean(employee);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name.includes('salary') || name === 'hra' || name === 'allowances' ? Number(value) : value
+      [name]: name.includes('salary') || name === 'hra' || name === 'allowances' || name === 'pf' || name === 'advance' ? Number(value) : value
     }));
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // For now, just store the file name - you can implement actual file upload later
+      setFormData(prev => ({
+        ...prev,
+        document_url: file.name
+      }));
+    }
+  };
+
+  const validatePanCard = async (panCard: string) => {
+    if (!panCard) return true;
+    
+    try {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('pan_card', panCard)
+        .neq('id', employee?.id || '');
+      
+      if (error) {
+        console.error('Error checking PAN card:', error);
+        return true;
+      }
+      
+      return data.length === 0;
+    } catch (error) {
+      console.error('Error validating PAN card:', error);
+      return true;
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate PAN card
+    const isPanValid = await validatePanCard(formData.pan_card);
+    if (!isPanValid) {
+      toast({
+        title: "Error",
+        description: "PAN card number already exists. Please enter a different PAN card number.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
       if (isEditing) {
         await updateEmployee.mutateAsync({
@@ -78,6 +130,11 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ employee, onSuccess }) => {
           basic_salary: 0,
           hra: 0,
           allowances: 0,
+          pf: 0,
+          advance: 0,
+          notes: '',
+          pan_card: '',
+          document_url: '',
         });
       }
     } catch (error) {
@@ -214,6 +271,63 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ employee, onSuccess }) => {
             onChange={handleInputChange}
             required
           />
+        </div>
+        <div>
+          <Label htmlFor="pf">PF (Provident Fund)</Label>
+          <Input
+            id="pf"
+            name="pf"
+            type="number"
+            value={formData.pf}
+            onChange={handleInputChange}
+          />
+        </div>
+        <div>
+          <Label htmlFor="advance">Advance</Label>
+          <Input
+            id="advance"
+            name="advance"
+            type="number"
+            value={formData.advance}
+            onChange={handleInputChange}
+          />
+        </div>
+        <div>
+          <Label htmlFor="notes">Notes (Narration)</Label>
+          <Textarea
+            id="notes"
+            name="notes"
+            value={formData.notes}
+            onChange={handleInputChange}
+            placeholder="Enter any additional notes or remarks..."
+            rows={3}
+          />
+        </div>
+        <div>
+          <Label htmlFor="pan_card">PAN Card Number</Label>
+          <Input
+            id="pan_card"
+            name="pan_card"
+            value={formData.pan_card}
+            onChange={handleInputChange}
+            placeholder="Enter PAN card number"
+            maxLength={10}
+          />
+        </div>
+        <div>
+          <Label htmlFor="document">Document Upload</Label>
+          <Input
+            id="document"
+            name="document"
+            type="file"
+            onChange={handleFileUpload}
+            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+          />
+          {formData.document_url && (
+            <p className="text-sm text-gray-500 mt-1">
+              Current file: {formData.document_url}
+            </p>
+          )}
         </div>
       </div>
 
